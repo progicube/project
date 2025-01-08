@@ -1,0 +1,262 @@
+import telegram
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+import google.generativeai as genai
+import os
+from datetime import datetime
+import threading
+import pytesseract
+
+# Specify the path to the Tesseract executable
+bot_token = '8157407622:AAEhUqSl0bKrjHMDU3--2bkifQcD7esKy3g'
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+from PIL import Image
+from io import BytesIO
+
+import google.generativeai as genai
+import os
+import base64
+
+import os
+import google.generativeai as genai
+
+# Убедитесь, что переменная окружения настроена
+os.environ['GOOGLE_API_KEY'] = 'AIzaSyDV5HWswldEweYICiwrd4wPOJ8XW2ed5Ck'
+
+# Пытаемся настроить API с использованием ключа
+genai.configure(api_key=os.environ['GOOGLE_API_KEY'])
+
+
+def prep_image(image_path):
+    # Upload the file and print a confirmation.
+    sample_file = genai.upload_file(path=image_path, display_name="Diagram")
+    print(f"Uploaded file '{sample_file.display_name}' as: {sample_file.uri}")
+    file = genai.get_file(name=sample_file.name)
+    print(f"Retrieved file '{file.display_name}' as: {sample_file.uri}")
+    return sample_file
+
+
+def extract_text_from_image(image_path, prompt):
+    # Choose a Gemini model.
+    model = genai.GenerativeModel(model_name="gemini-1.5-pro")
+    # Prompt the model with text and the previously uploaded image.
+    response = model.generate_content([image_path, prompt])
+    return response.text
+
+
+# Telegram bot token (replace with your actual token)
+api_key = 'AIzaSyDV5HWswldEweYICiwrd4wPOJ8XW2ed5Ck'
+
+# Initialize Google's Gemini client for text generation
+genai.configure(api_key=api_key)
+model = genai.GenerativeModel('gemini-1.5-flash')
+
+# Store user names
+user_names = {}
+
+# Ensure the logs folder exists
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+
+# Lock for thread-safe file writing
+log_lock = threading.Lock()
+
+# Function to handle image messages and perform OCR
+from io import BytesIO
+from PIL import Image
+import os
+import google.generativeai as genai
+code = ""
+
+async def handle_image(update, context):
+    chat_id = update.effective_chat.id
+
+    # Получаем фото из обновления
+    photo = update.message.photo[-1]  # Получаем фото наибольшего разрешения
+    photo_file = await photo.get_file()
+    photo_path = await photo_file.download_as_bytearray()
+
+    # Открываем изображение с использованием PIL
+    image = Image.open(BytesIO(photo_path))
+
+    # Сохраняем изображение в временный файл
+    temp_file_path = "temp_image.jpg"
+    image.save(temp_file_path)
+
+    # Логируем извлеченный текст
+    sample_file = prep_image(temp_file_path)  # Передаем путь к временно сохраненному файлу
+    text = extract_text_from_image(sample_file,
+                                   f"если это картинка считай текст с картинки, кроме самоой верхней надписи, и сравни его с этим "
+                                   f"текстом, учитывая только символы:努尔波{code}, 13078833342 广东省 佛山市 南海区 里水镇新联工业区工业大道东一路3号航达В01库区"
+                                   f"{code}号. если последнее число не схоже пиши то что код не правильный, "
+                                   f"если адрес не правильный, а если тексты схожи пиши то что все "
+                                   f"правильно на русском")
+
+    if text:
+        print("Interpreted Image:")
+        await update.message.reply_text(text)
+        log_message(update, "Extracted Text", text)
+    else:
+        print("Failed to extract text from the image.")
+
+
+# Функция для загрузки файла
+def prep_image(image_path):
+    # Загрузите файл на Google API
+    sample_file = genai.upload_file(path=image_path, display_name="Diagram")
+    print(f"Uploaded file '{sample_file.display_name}' as: {sample_file.uri}")
+    return sample_file
+
+
+# Ваши остальные функции и логика
+
+
+# Function to print logs with timestamps and write to user's log file
+def log_message(update, sender, message):
+    chat_id = update.effective_chat.id
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    log_entry = f"{timestamp} - {sender}: {message}"
+    print(log_entry)
+
+    user_name = user_names.get(chat_id)
+    if not user_name:
+        user_name = update.effective_user.first_name
+        user_names[chat_id] = user_name
+
+    log_file_path = f"logs/{user_name}_{chat_id}_log.txt"
+
+    with log_lock:
+        with open(log_file_path, "a") as log_file:
+            log_file.write(log_entry + "\n")
+
+
+# Command handlers
+async def help_command(update, context):
+    help_message = "Commands:\n /name\n /desc\n /website\n /contact"
+    await update.message.reply_text(help_message)
+    log_message(update, "Bot", help_message)
+
+
+async def name_command(update, context):
+    name_message = "Name: Soubhagyajit's Bot (Gemini)"
+    await update.message.reply_text(name_message)
+    log_message(update, "Bot", name_message)
+
+
+async def desc_command(update, context):
+    desc_message = (
+        "Name: Soubhagyajit's Bot (Gemini)\n"
+        "A chat bot created by Soubhagyajit Borah. Using Google's Gemini for conversation and chatting."
+    )
+    await update.message.reply_text(desc_message)
+    log_message(update, "Bot", desc_message)
+
+
+async def website_command(update, context):
+    website_message = "Website: https://www.soubhagyajit.com"
+    await update.message.reply_text(website_message)
+    log_message(update, "Bot", website_message)
+
+
+async def contact_command(update, context):
+    contact_message = "Contact us at me@soubhagyajit.com"
+    await update.message.reply_text(contact_message)
+    log_message(update, "Bot", contact_message)
+
+
+async def start_command(update, context):
+    chat_id = update.effective_chat.id
+    user = update.effective_user
+    first_name = user.first_name
+    user_names[chat_id] = first_name
+    welcome_message = f"Welcome, {first_name}! Thank you for chatting with me."
+    await update.message.reply_text(welcome_message)
+    log_message(update, "Bot", welcome_message)
+
+
+# Message handler for all text messages
+from pprint import pprint
+import httplib2
+import apiclient.discovery
+from oauth2client.service_account import ServiceAccountCredentials
+
+# Путь к JSON-файлу с учетными данными
+CREDENTIALS_FILE = r'C:\Users\mahme\PycharmProjects\bot1\creds.json'
+
+# ID таблицы Google Sheets (из URL)
+spreadsheet_id = '1QEVxG8iL1Gzhc7unUcs4Zcfi-ILDvif9s7J4p75jSb8'
+
+# Авторизация и создание объекта service
+credentials = ServiceAccountCredentials.from_json_keyfile_name(
+    CREDENTIALS_FILE,
+    ['https://www.googleapis.com/auth/spreadsheets',
+     'https://www.googleapis.com/auth/drive']
+)
+httpAuth = credentials.authorize(httplib2.Http())
+service = apiclient.discovery.build('sheets', 'v4', http=httpAuth)
+
+# Считывание текста из ячейки A1
+values = service.spreadsheets().values().get(
+    spreadsheetId=spreadsheet_id,
+    range='A1',
+    majorDimension='ROWS'
+).execute()
+values1 = service.spreadsheets().values().get(
+    spreadsheetId=spreadsheet_id,
+    range='A2',
+    majorDimension='ROWS'
+).execute()
+
+# Получение значения из ответа
+cell_value = values.get('values', [[]])[0][0] if values.get('values') else None
+cell_value1 = values1.get('values', [[]])[0][0] if values.get('values') else None
+print(f"Текст в ячейке A1: {cell_value}")
+print(f"Текст в ячейке A1: {cell_value1}")
+
+test = cell_value
+test1 = cell_value1
+
+
+async def handle_message(update, context):
+    message = test + test1 + update.message.text
+    chat_id = update.effective_chat.id
+    is_digit_present = any(character.isdigit() for character in update.message.text)
+    # Get the user's name
+    user = update.effective_user
+    first_name = user_names.get(chat_id, user.first_name)
+
+    # Log the user's message
+    log_message(update, first_name, message)
+
+    # Generate response using Google's Gemini text generation
+    if(is_digit_present == False):
+        response = model.generate_content(f"{first_name} asked: {message}")
+        custom_response = response.text.strip()
+
+    # Send the response back to the user
+        await update.message.reply_text(custom_response)
+
+    # Log the bot's response
+        log_message(update, "Soubhagyajit's Bot (Gemini)", custom_response)
+    else:
+        code = update.message.text
+
+
+# Set up the bot application
+application = Application.builder().token(bot_token).build()
+
+# Add command handlers
+application.add_handler(CommandHandler('help', help_command))
+application.add_handler(CommandHandler('name', name_command))
+application.add_handler(CommandHandler('desc', desc_command))
+application.add_handler(CommandHandler('website', website_command))
+application.add_handler(CommandHandler('contact', contact_command))
+application.add_handler(CommandHandler('start', start_command))
+
+# Add message handler for all text messages
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+# Add message handler for images
+application.add_handler(MessageHandler(filters.PHOTO, handle_image))
+
+# Start polling for updates
+application.run_polling()
